@@ -56,15 +56,13 @@ public class MyKafkaStreamsTask {
 
         JsonDeserializer<TestData> testDataJsonDeserializer = new JsonDeserializer<>(TestData.class);
 
-        // subscribe to notification events
         topology.addSource(SOURCE,
             new StringDeserializer(),
             testDataJsonDeserializer,
             "source-topic");
 
-        // delay occurred notifications by the configured timeout, and suppress them if they are rectified meanwhile
         topology.addProcessor(FIRST_PROCESSOR,
-            () -> new DelayedForwarder(),
+            DelayedForwarder::new,
             SOURCE
         );
 
@@ -85,7 +83,6 @@ public class MyKafkaStreamsTask {
             () -> new TestDataSender(externalUrl),
             FIRST_PROCESSOR);
 
-        // publish report notification commands
         topology.addSink(SINK, "sink-topic",
             new StringSerializer(),
             new JsonSerializer<>(),

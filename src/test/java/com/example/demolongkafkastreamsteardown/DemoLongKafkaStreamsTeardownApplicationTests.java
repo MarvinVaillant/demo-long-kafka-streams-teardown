@@ -12,6 +12,7 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.matching.RequestPattern;
 import com.github.tomakehurst.wiremock.verification.FindRequestsResult;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -23,10 +24,15 @@ import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.streams.KafkaStreams;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestInstance.Lifecycle;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -41,6 +47,7 @@ import org.testcontainers.utility.DockerImageName;
 
 @SpringBootTest
 @Testcontainers
+@TestInstance(Lifecycle.PER_CLASS)
 class DemoLongKafkaStreamsTeardownApplicationTests {
 
     private static final List<String> REQUIRED_TOPICS = List.of("source-topic", "sink-topic");
@@ -56,6 +63,9 @@ class DemoLongKafkaStreamsTeardownApplicationTests {
 
     private KafkaTemplate<String, TestData> producer;
 
+    @Autowired
+    private KafkaStreams kafkaStreams;
+
 
     @DynamicPropertySource
     static void registerDynamicProperties(DynamicPropertyRegistry registry) {
@@ -64,7 +74,7 @@ class DemoLongKafkaStreamsTeardownApplicationTests {
     }
 
     @BeforeAll
-    static void beforeAll() {
+    void beforeAll() {
         Map<String, Object> configs = new HashMap<>();
         configs.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
 
@@ -74,6 +84,11 @@ class DemoLongKafkaStreamsTeardownApplicationTests {
 
             adminClient.createTopics(newTopics);
         }
+    }
+
+    @AfterAll
+    void afterAll() {
+        kafkaStreams.close(Duration.ofMillis(5L));
     }
 
     @BeforeEach
@@ -101,14 +116,13 @@ class DemoLongKafkaStreamsTeardownApplicationTests {
             .willReturn(aResponse().withStatus(200))
             .build());
 
+        // WHEN
         for (int i = 0; i < 1_000; i++) {
             TestData testData = new TestData("test", Instant.now());
 
             CompletableFuture<SendResult<String, TestData>> send = producer.send("source-topic", "some-key", testData);
             send.get();
         }
-
-        // WHEN
 
         // THEN
         Awaitility.await().untilAsserted(() -> {
