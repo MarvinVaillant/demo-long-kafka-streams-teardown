@@ -12,7 +12,6 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.github.tomakehurst.wiremock.matching.RequestPattern;
 import com.github.tomakehurst.wiremock.verification.FindRequestsResult;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -24,15 +23,10 @@ import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.apache.kafka.streams.KafkaStreams;
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.TestInstance.Lifecycle;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -47,7 +41,6 @@ import org.testcontainers.utility.DockerImageName;
 
 @SpringBootTest
 @Testcontainers
-@TestInstance(Lifecycle.PER_CLASS)
 class DemoLongKafkaStreamsTeardownApplicationTests {
 
     private static final List<String> REQUIRED_TOPICS = List.of("source-topic", "sink-topic");
@@ -55,16 +48,13 @@ class DemoLongKafkaStreamsTeardownApplicationTests {
     @Container
     final static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.1"));
 
-    final static WireMockServer wireMockServer = new WireMockServer(new WireMockConfiguration().port(19933));
+    final static WireMockServer wireMockServer = new WireMockServer(new WireMockConfiguration().dynamicPort());
 
     static {
         wireMockServer.start();
     }
 
     private KafkaTemplate<String, TestData> producer;
-
-    @Autowired
-    private KafkaStreams kafkaStreams;
 
 
     @DynamicPropertySource
@@ -74,7 +64,7 @@ class DemoLongKafkaStreamsTeardownApplicationTests {
     }
 
     @BeforeAll
-    void beforeAll() {
+    static void beforeAll() {
         Map<String, Object> configs = new HashMap<>();
         configs.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
 
@@ -84,11 +74,6 @@ class DemoLongKafkaStreamsTeardownApplicationTests {
 
             adminClient.createTopics(newTopics);
         }
-    }
-
-    @AfterAll
-    void afterAll() {
-        kafkaStreams.close(Duration.ofMillis(5L));
     }
 
     @BeforeEach
